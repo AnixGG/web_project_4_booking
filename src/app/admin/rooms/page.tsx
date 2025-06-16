@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { Trash2, Edit } from 'lucide-react';
 
-// Описываем тип для комнаты, чтобы TypeScript нам помогал
 type Room = {
   id: number;
   name: string;
@@ -15,15 +16,12 @@ type Room = {
 };
 
 export default function AdminRoomsPage() {
-  // Состояние для списка комнат и статусов UI
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Единое состояние для полей формы
   const [newRoom, setNewRoom] = useState({ name: '', capacity: '' });
 
-  // 1. Надёжная функция для загрузки комнат с нашего API
   const fetchRooms = async () => {
     setIsLoading(true);
     setError(null);
@@ -41,12 +39,10 @@ export default function AdminRoomsPage() {
     }
   };
 
-  // Загружаем комнаты при первом рендере страницы
   useEffect(() => {
     fetchRooms();
   }, []);
 
-  // 2. Исправленная функция для создания новой комнаты
   const handleCreateRoom = async (e: FormEvent) => {
     e.preventDefault(); // Предотвращаем перезагрузку страницы
 
@@ -56,7 +52,7 @@ export default function AdminRoomsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newRoom.name,
-          capacity: Number(newRoom.capacity), // Конвертируем вместимость в число
+          capacity: Number(newRoom.capacity),
         }),
       });
 
@@ -64,19 +60,46 @@ export default function AdminRoomsPage() {
         throw new Error('Не удалось создать комнату.');
       }
 
-      // После успешного создания обновляем список и очищаем форму
       fetchRooms();
       setNewRoom({ name: '', capacity: '' });
     } catch (err: any) {
-      alert(err.message); // Показываем ошибку пользователю
+      alert(err.message);
     }
   };
+
+  const handleDeleteRoom = (roomId: number) => {
+        toast.warning(
+            `Вы уверены, что хотите удалить комнату ID: ${roomId}?`,
+            {
+                action: {
+                    label: "Да, удалить",
+                    onClick: async () => {
+                        const promise = fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+                        toast.promise(promise, {
+                            loading: 'Удаляем комнату...',
+                            success: () => {
+                                fetchRooms();
+                                return 'Комната успешно удалена!';
+                            },
+                            error: 'Ошибка при удалении',
+                        });
+                    },
+                },
+                cancel: {
+                    label: "Отмена",
+                },
+            }
+        );
+    };
+    
+    const handleEditRoom = (room: Room) => {
+        toast.info(`В разработке: редактирование комнаты "${room.name}"`);
+    };
 
   return (
     <div className="container mx-auto max-w-4xl p-4 sm:p-6">
       <h1 className="text-3xl font-bold mb-6">Управление переговорками</h1>
       
-      {/* Форма создания комнаты */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Добавить новую переговорку</CardTitle>
@@ -121,23 +144,42 @@ export default function AdminRoomsPage() {
           {error && <p className="text-red-500">Ошибка: {error}</p>}
           {!isLoading && !error && (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">ID</TableHead>
-                  <TableHead>Название</TableHead>
-                  <TableHead className="text-right">Вместимость</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rooms.length > 0 ? (
-                  rooms.map((room) => (
-                    <TableRow key={room.id}>
-                      <TableCell>{room.id}</TableCell>
-                      <TableCell className="font-medium">{room.name}</TableCell>
-                      <TableCell className="text-right">{room.capacity}</TableCell>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-[100px]">ID</TableHead>
+                        <TableHead>Название</TableHead>
+                        <TableHead>Вместимость</TableHead>
+                        <TableHead className="text-right">Действия</TableHead> {/* 3. Новая колонка */}
                     </TableRow>
-                  ))
-                ) : (
+                </TableHeader>
+                <TableBody>
+                    {rooms.length > 0 ? (
+                        rooms.map((room) => (
+                            <TableRow key={room.id}>
+                                <TableCell>{room.id}</TableCell>
+                                <TableCell className="font-medium">{room.name}</TableCell>
+                                <TableCell>{room.capacity}</TableCell>
+                                {/* 4. Новые ячейки с кнопками */}
+                                <TableCell className="text-right">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEditRoom(room)}
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDeleteRoom(room.id)}
+                                        className="text-red-500 hover:text-red-600"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center">
                       Переговорок пока нет. Создайте первую!
