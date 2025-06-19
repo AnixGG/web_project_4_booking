@@ -1,28 +1,25 @@
-// src/app/api/rooms/[id]/route.ts
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// Параметры для функции, чтобы получить ID из URL
 interface RouteParams {
   params: { id: string };
 }
 
-// Функция для обработки DELETE-запросов (удалить комнату)
+// удалить комнату
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const id = parseInt(params.id, 10);
     await prisma.room.delete({
       where: { id },
     });
-    return new NextResponse(null, { status: 204 }); // 204 No Content - успешное удаление
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Failed to delete room' }, { status: 500 });
   }
 }
 
-// Функция для обработки PUT-запросов (обновить комнату)
+// обновить комнату
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const id = parseInt(params.id, 10);
