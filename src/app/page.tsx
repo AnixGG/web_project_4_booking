@@ -1,103 +1,201 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+
+type Room = { id: number; name: string; capacity: number };
+type Booking = {
+  id: number;
+  title: string;
+  startTime: string;
+  endTime: string;
+  user: { name: string | null };
+};
+
+export default function BookingPage() {
+  const { data: session, status } = useSession();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [title, setTitle] = useState('');
+  const [time, setTime] = useState('10:00');
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const response = await fetch('/api/rooms');
+        if (!response.ok) throw new Error('Не удалось загрузить комнаты');
+        setRooms(await response.json());
+      } catch (error: any) { toast.error(error.message); }
+    };
+    fetchRooms();
+  }, []);
+
+  const fetchBookings = useCallback(async () => {
+    if (!selectedRoomId || !selectedDate) return;
+
+    setIsLoadingBookings(true);
+    const dateString = format(selectedDate, 'yyyy-MM-dd');
+    try {
+      const response = await fetch(`/api/bookings?roomId=${selectedRoomId}&date=${dateString}`);
+      if (!response.ok) throw new Error('Не удалось загрузить бронирования');
+      setBookings(await response.json());
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  }, [selectedRoomId, selectedDate]);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
+  const handleBooking = async () => {
+    if (status !== 'authenticated' || !session?.user?.id) {
+      toast.error('Пожалуйста, войдите в систему, чтобы забронировать комнату.');
+      return;
+    }
+    if (!selectedRoomId || !selectedDate || !title || !time) {
+      toast.error('Пожалуйста, заполните все поля.');
+      return;
+    }
+
+    const [hours, minutes] = time.split(':').map(Number);
+    const startTime = new Date(selectedDate);
+    startTime.setHours(hours, minutes, 0, 0);
+
+    const endTime = new Date(startTime);
+    endTime.setHours(startTime.getHours() + 1);
+
+    const bookingData = {
+      title,
+      roomId: parseInt(selectedRoomId, 10),
+      userId: session.user.id,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+    };
+
+    const promise = async() => {
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || 'Произошла неизвестная ошибка сервера');
+      }
+      return response.json();
+    }
+
+    toast.promise(promise, {
+      loading: 'Проверяем доступность и бронируем...',
+      success: (res) => {
+        fetchBookings();
+        return 'Переговорка успешно забронирована!';
+      },
+      error: (err: Error) => {
+        return err.message;
+      },
+    });
+  };
+
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="container mx-auto p-4 md:p-6">
+      <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Левая колонка - Форма */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Новое бронирование</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="title">Название встречи</Label>
+              <Input id="title" placeholder="Ежедневный синк" value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div>
+              <Label>Комната</Label>
+              <Select onValueChange={setSelectedRoomId} value={selectedRoomId}>
+                <SelectTrigger><SelectValue placeholder="Выберите комнату..." /></SelectTrigger>
+                <SelectContent>{rooms.map((room) => <SelectItem key={room.id} value={String(room.id)}>{room.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Дата</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, 'PPP', { locale: ru }) : <span>Выберите дату</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus /></PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label htmlFor="time">Время</Label>
+                <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              </div>
+            </div>
+            <Button onClick={handleBooking} className="w-full">Забронировать</Button>
+          </CardContent>
+        </Card>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        {/* Правая колонка - Расписание */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Расписание на сегодня</CardTitle>
+            <CardDescription>
+              {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : 'Выберите дату'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingBookings ? (
+              <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : bookings.length > 0 ? (
+              <ul className="space-y-3">
+                {bookings.map((booking) => (
+                  <li key={booking.id} className="p-3 bg-gray-100 rounded-md">
+                    <p className="font-semibold">{booking.title}</p>
+                    <p className="text-sm text-gray-600">
+                      {format(new Date(booking.startTime), 'HH:mm')} – {format(new Date(booking.endTime), 'HH:mm')}
+                    </p>
+                    <p className="text-sm text-gray-500">Кем: {booking.user?.name || 'Пользователь'}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500 h-40 flex items-center justify-center">На выбранную дату бронирований нет.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

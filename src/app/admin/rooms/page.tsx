@@ -44,7 +44,7 @@ export default function AdminRoomsPage() {
   }, []);
 
   const handleCreateRoom = async (e: FormEvent) => {
-    e.preventDefault(); // Предотвращаем перезагрузку страницы
+    e.preventDefault();
 
     try {
       const response = await fetch('/api/rooms', {
@@ -87,6 +87,7 @@ export default function AdminRoomsPage() {
                 },
                 cancel: {
                     label: "Отмена",
+                    onClick: () => {},
                 },
             }
         );
@@ -95,6 +96,59 @@ export default function AdminRoomsPage() {
     const handleEditRoom = (room: Room) => {
         toast.info(`В разработке: редактирование комнаты "${room.name}"`);
     };
+
+    const renderTableContent = () => {
+    if (isLoading) {
+      return <p className="text-center py-4">Загрузка...</p>;
+    }
+
+    if (error) {
+      return <p className="text-red-500 text-center py-4">Ошибка: {error}</p>;
+    }
+
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[100px]">ID</TableHead>
+            <TableHead>Название</TableHead>
+            <TableHead>Вместимость</TableHead>
+            <TableHead className="text-right">Действия</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rooms.length > 0 ? (
+            rooms.map((room) => (
+              <TableRow key={room.id}>
+                <TableCell>{room.id}</TableCell>
+                <TableCell className="font-medium">{room.name}</TableCell>
+                <TableCell>{room.capacity}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => handleEditRoom(room)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteRoom(room.id)}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={4} className="h-24 text-center">
+                Переговорок пока нет. Создайте первую!
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    );
+  };
 
   return (
     <div className="container mx-auto max-w-4xl p-4 sm:p-6">
@@ -133,62 +187,12 @@ export default function AdminRoomsPage() {
         </CardContent>
       </Card>
 
-      {/* Таблица со списком комнат */}
       <Card>
         <CardHeader>
           <CardTitle>Список переговорок</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* 3. Отображение состояний загрузки и ошибок */}
-          {isLoading && <p>Загрузка...</p>}
-          {error && <p className="text-red-500">Ошибка: {error}</p>}
-          {!isLoading && !error && (
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[100px]">ID</TableHead>
-                        <TableHead>Название</TableHead>
-                        <TableHead>Вместимость</TableHead>
-                        <TableHead className="text-right">Действия</TableHead> {/* 3. Новая колонка */}
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rooms.length > 0 ? (
-                        rooms.map((room) => (
-                            <TableRow key={room.id}>
-                                <TableCell>{room.id}</TableCell>
-                                <TableCell className="font-medium">{room.name}</TableCell>
-                                <TableCell>{room.capacity}</TableCell>
-                                {/* 4. Новые ячейки с кнопками */}
-                                <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleEditRoom(room)}
-                                    >
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteRoom(room.id)}
-                                        className="text-red-500 hover:text-red-600"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))
-                    ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center">
-                      Переговорок пока нет. Создайте первую!
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+          {renderTableContent()}
         </CardContent>
       </Card>
     </div>

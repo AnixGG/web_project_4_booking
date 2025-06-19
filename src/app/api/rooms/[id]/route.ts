@@ -6,9 +6,11 @@ interface RouteParams {
 }
 
 // удалить комнату
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(request: Request) {
   try {
-    const id = parseInt(params.id, 10);
+    const url = new URL(request.url);
+    const id = parseInt(url.pathname.split('/').pop() || '', 10);
+    
     await prisma.room.delete({
       where: { id },
     });
