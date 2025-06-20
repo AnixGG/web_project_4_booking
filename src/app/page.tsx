@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Loader2, Clock as ClockIcon } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { Trash2 } from 'lucide-react';
 
 type Room = { id: number; name: string; capacity: number };
 type Booking = {
@@ -123,6 +124,38 @@ export default function BookingPage() {
     );
   }
 
+  // Функция удаления бронирования
+  const handleDeleteBooking = (bookingId: number) => {
+    toast.warning(
+      `Вы уверены, что хотите удалить бронирование ID: ${bookingId}?`,
+      {
+        action: {
+          label: 'Да, удалить',
+          onClick: async () => {
+            try {
+              const response = await fetch(`/api/bookings/${bookingId}`, {
+                method: 'DELETE',
+              });
+              if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data?.error || 'Ошибка при удалении бронирования.');
+              }
+              await fetchBookings();
+              toast.success('Бронирование успешно удалено.');
+            } catch (err: any) {
+              console.error(err);
+              toast.error(err.message || 'Не удалось удалить бронирование.');
+            }
+          },
+        },
+        cancel: {
+          label: 'Отмена',
+          onClick: () => {},
+        },
+      }
+    );
+  };
+
   return (
     <div className="font-sans container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
       <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -205,12 +238,25 @@ export default function BookingPage() {
             ) : bookings.length > 0 ? (
               <ul className="space-y-3">
                 {bookings.map((booking) => (
-                  <li key={booking.id} className="p-3 bg-gray-100 rounded-md">
-                    <p className="font-semibold text-base sm:text-lg">{booking.title}</p>
-                    <p className="text-sm sm:text-base text-gray-600">
-                      {format(new Date(booking.startTime), 'HH:mm')} – {format(new Date(booking.endTime), 'HH:mm')}
-                    </p>
-                    <p className="text-sm sm:text-base text-gray-500">Кем: {booking.user?.name || 'Пользователь'}</p>
+                  <li key={booking.id} className="flex justify-between items-center p-4 border-b">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">
+                        {format(new Date(booking.startTime), 'HH:mm')} – {format(new Date(booking.endTime), 'HH:mm')}
+                      </p>
+                      <p className="text-sm text-gray-500 break-words">
+                        Кем: {booking.user?.name || 'Пользователь'}
+                      </p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteBooking(booking.id)}
+                        className="text-red-500 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
