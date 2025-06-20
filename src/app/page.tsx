@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Clock as ClockIcon } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 type Room = { id: number; name: string; capacity: number };
@@ -101,7 +101,7 @@ export default function BookingPage() {
         throw new Error(errorData?.error || 'Произошла неизвестная ошибка сервера');
       }
       return response.json();
-    }
+    };
 
     toast.promise(promise, {
       loading: 'Проверяем доступность и бронируем...',
@@ -124,22 +124,22 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+    <div className="font-sans container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
       <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Левая колонка - Форма */}
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-xl sm:text-2xl">Новое бронирование</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl mb-4">Новое бронирование</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div>
-              <Label htmlFor="title">Название встречи</Label>
-              <Input id="title" placeholder="Ежедневный синк" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full" />
+              <Label htmlFor="title" className="block mb-2">Название встречи</Label>
+              <Input id="title" placeholder="Ежедневный синк" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full mt-2" />
             </div>
             <div>
-              <Label>Комната</Label>
+              <Label className="block mb-2">Комната</Label>
               <Select onValueChange={setSelectedRoomId} value={selectedRoomId}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Выберите комнату..." /></SelectTrigger>
+                <SelectTrigger className="w-full mt-2"><SelectValue placeholder="Выберите комнату..." /></SelectTrigger>
                 <SelectContent className="w-full">
                   {rooms.map((room) => (
                     <SelectItem key={room.id} value={String(room.id)}>
@@ -151,10 +151,10 @@ export default function BookingPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Дата</Label>
+                <Label className="block mb-2">Дата</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button variant="outline" className="w-full justify-start text-left font-normal mt-2">
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {selectedDate ? format(selectedDate, 'PPP', { locale: ru }) : <span>Выберите дату</span>}
                     </Button>
@@ -165,19 +165,35 @@ export default function BookingPage() {
                 </Popover>
               </div>
               <div>
-                <Label htmlFor="time">Время</Label>
-                <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full" />
+                <Label className="block mb-2">Время</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal mt-2">
+                      <ClockIcon className="mr-2 h-4 w-4" />
+                      {time}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-2 w-auto">
+                    <Input 
+                      type="time" 
+                      value={time} 
+                      onChange={(e) => setTime(e.target.value)} 
+                      className="w-full" 
+                      autoFocus 
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
-            <Button onClick={handleBooking} className="w-full">Забронировать</Button>
+            <Button onClick={handleBooking} className="w-full mt-4">Забронировать</Button>
           </CardContent>
         </Card>
 
         {/* Правая колонка - Расписание */}
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-xl sm:text-2xl">Расписание на выбранную дату</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-xl sm:text-2xl mb-2">Расписание на выбранную дату</CardTitle>
+            <CardDescription className="mb-4">
               {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : 'Выберите дату'}
             </CardDescription>
           </CardHeader>
