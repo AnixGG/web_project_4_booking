@@ -124,26 +124,32 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+      <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Левая колонка - Форма */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-2xl">Новое бронирование</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">Новое бронирование</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="title">Название встречи</Label>
-              <Input id="title" placeholder="Ежедневный синк" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input id="title" placeholder="Ежедневный синк" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full" />
             </div>
             <div>
               <Label>Комната</Label>
               <Select onValueChange={setSelectedRoomId} value={selectedRoomId}>
-                <SelectTrigger><SelectValue placeholder="Выберите комнату..." /></SelectTrigger>
-                <SelectContent>{rooms.map((room) => <SelectItem key={room.id} value={String(room.id)}>{room.name}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Выберите комнату..." /></SelectTrigger>
+                <SelectContent className="w-full">
+                  {rooms.map((room) => (
+                    <SelectItem key={room.id} value={String(room.id)}>
+                      {room.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Дата</Label>
                 <Popover>
@@ -153,12 +159,14 @@ export default function BookingPage() {
                       {selectedDate ? format(selectedDate, 'PPP', { locale: ru }) : <span>Выберите дату</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus /></PopoverContent>
+                  <PopoverContent className="w-screen max-w-sm sm:w-auto p-0">
+                    <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+                  </PopoverContent>
                 </Popover>
               </div>
               <div>
                 <Label htmlFor="time">Время</Label>
-                <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full" />
               </div>
             </div>
             <Button onClick={handleBooking} className="w-full">Забронировать</Button>
@@ -166,9 +174,9 @@ export default function BookingPage() {
         </Card>
 
         {/* Правая колонка - Расписание */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle>Расписание на сегодня</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">Расписание на выбранную дату</CardTitle>
             <CardDescription>
               {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : 'Выберите дату'}
             </CardDescription>
@@ -182,11 +190,11 @@ export default function BookingPage() {
               <ul className="space-y-3">
                 {bookings.map((booking) => (
                   <li key={booking.id} className="p-3 bg-gray-100 rounded-md">
-                    <p className="font-semibold">{booking.title}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-semibold text-base sm:text-lg">{booking.title}</p>
+                    <p className="text-sm sm:text-base text-gray-600">
                       {format(new Date(booking.startTime), 'HH:mm')} – {format(new Date(booking.endTime), 'HH:mm')}
                     </p>
-                    <p className="text-sm text-gray-500">Кем: {booking.user?.name || 'Пользователь'}</p>
+                    <p className="text-sm sm:text-base text-gray-500">Кем: {booking.user?.name || 'Пользователь'}</p>
                   </li>
                 ))}
               </ul>
