@@ -8,7 +8,6 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
-// --- Типы данных, которые мы ожидаем от API ---
 type ProfileData = {
   name: string | null;
   email: string | null;
@@ -22,16 +21,13 @@ type LinkCodeData = {
 export default function ProfilePage() {
   const { data: session, status: sessionStatus } = useSession();
 
-  // --- Состояния, управляемые вручную ---
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   const [linkCodeData, setLinkCodeData] = useState<LinkCodeData | null>(null);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
-  // --- Функция для загрузки данных профиля ---
   const fetchProfile = useCallback(async () => {
-    // Не делаем запрос, если пользователь не аутентифицирован
     if (sessionStatus !== 'authenticated') {
       setIsLoadingProfile(false);
       return;
@@ -50,14 +46,12 @@ export default function ProfilePage() {
     } finally {
       setIsLoadingProfile(false);
     }
-  }, [sessionStatus]); // Перезапускаем функцию, если статус сессии изменился
+  }, [sessionStatus]);
 
-  // --- Запускаем загрузку профиля при монтировании компонента или изменении сессии ---
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
-  // --- Функция для генерации кода привязки ---
   const handleGenerateCode = async () => {
     setIsGeneratingCode(true);
     try {
@@ -75,10 +69,6 @@ export default function ProfilePage() {
     }
   };
 
-
-  // --- Рендеринг компонента ---
-
-  // Показываем главный загрузчик, пока идет проверка сессии или первая загрузка профиля
   if (sessionStatus === 'loading' || isLoadingProfile) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-80px)]">
@@ -87,7 +77,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Если пользователь не вошел, показываем сообщение
   if (sessionStatus === 'unauthenticated') {
     return (
       <div className="text-center mt-20">
@@ -96,7 +85,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Основная разметка для авторизованного пользователя
   return (
     <div className="container mx-auto max-w-2xl py-10">
       <Card>
