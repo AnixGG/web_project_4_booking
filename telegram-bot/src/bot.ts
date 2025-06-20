@@ -1,224 +1,276 @@
-import { Telegraf, Context } from 'telegraf';
-import LocalSession from 'telegraf-session-local';
-import fetch from 'node-fetch';
-import dotenv from 'dotenv';
-import { format, parseISO, isValid } from 'date-fns';
+import { Telegraf, Markup, Scenes, session, Context } from 'telegraf';
+import 'dotenv/config';
+import { format, parse } from 'date-fns';
 
-dotenv.config();
+// =============================================================================
+// 1. ТИПЫ
+// =============================================================================
 
-const BOT_TOKEN = process.env.BOT_TOKEN!;
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000/api';
+type Room = { id: number; name: string; capacity: number };
+type Booking = { id: number; title: string; startTime: string };
 
-if (!BOT_TOKEN) {
-  throw new Error('Не задан BOT_TOKEN в .env');
+// =============================================================================
+// 2. ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ АВТОРИЗАЦИИ
+// =============================================================================
+
+async function getUserIdByTelegramId(telegramId: number): Promise<number | null> {
+    const apiUrl = process.env.API_BASE_URL;
+    if (!apiUrl) {
+        console.error("API_BASE_URL не определен!");
+        return null;
+    }
+    try {
+        const response = await fetch(`${apiUrl}/users/by-telegram/${telegramId}`);
+        if (!response.ok) return null;
+        const userData = await response.json();
+        return userData.id;
+    } catch (error) {
+        console.error("Ошибка при проверке пользователя:", error);
+        return null;
+    }
 }
 
-// --- Типы контекста с сессией ---
-interface AuthSession {
-  step?: 'email' | 'password';
-  email?: string;
-  cookies?: string[];
-}
-interface BookingSession {
-  step?: 'room' | 'date' | 'time' | 'title';
-  roomId?: number;
-  date?: string;
-  startTime?: string;
-  endTime?: string;
-}
-interface MyContext extends Context {
-  session: { auth?: AuthSession; booking?: BookingSession };
-}
+// =============================================================================
+// 3. ОПРЕДЕЛЕНИЕ СЦЕНЫ
+// =============================================================================
 
-// --- Инициализация бота и сессии ---
-const bot = new Telegraf<MyContext>(BOT_TOKEN);
-bot.use(new LocalSession({ database: 'sessions.json' }).middleware());
+const bookingWizard = new Scenes.WizardScene<any>(
+  'booking_wizard',
 
-// --- /start ---
-bot.start(ctx =>
-  ctx.reply('Привет! Я бот бронирования.\n' +
-            'Команды:\n' +
-            '/login — войти\n' +
-            '/rooms — доступные комнаты\n' +
-            '/book — забронировать\n' +
-            '/mybookings — мои бронирования\n' +
-            '/cancel <ID> — отменить бронь')
-);
+  // Шаг 1: Спрашиваем дату
+  async (ctx) => {
+    await ctx.reply(
+      `Вы бронируете комнату "${ctx.scene.session.roomName}".\n\n` +
+      `Введите дату в формате ГГГГ-ММ-ДД (например, ${format(new Date(), 'yyyy-MM-dd')}).\n\n` +
+      `Чтобы отменить, введите /cancel.`
+    );
+    return ctx.wizard.next();
+  },
 
-// --- /login ---
-bot.command('login', ctx => {
-  ctx.session.auth = { step: 'email' };
-  ctx.reply('Введите ваш email для входа:');
-});
-
-// --- /rooms ---
-bot.command('rooms', async ctx => {
-  try {
-    // Авторизованный запрос
-    const headers: any = {};
-    if (ctx.session.auth?.cookies) {
-      headers['Cookie'] = ctx.session.auth.cookies.join('; ');
+  // Шаг 2: Получаем дату, спрашиваем время
+  async (ctx) => {
+    if ('text' in ctx.message && /^\d{4}-\d{2}-\d{2}$/.test(ctx.message.text)) {
+      ctx.scene.session.date = ctx.message.text;
+      await ctx.reply('Отлично! Теперь введите время начала в формате ЧЧ:ММ (например, 14:00).');
+      return ctx.wizard.next();
     }
-    const res = await fetch(`${API_BASE}/rooms`, { headers });
-    const rooms = await res.json();
-    if (!rooms.length) return ctx.reply('Нет комнат.');
-    ctx.reply(rooms.map((r: any) => `ID ${r.id}: ${r.name} (${r.capacity})`).join('\n'));
-  } catch {
-    ctx.reply('Ошибка получения комнат.');
-  }
-});
+    await ctx.reply('Неверный формат. Пожалуйста, введите дату как ГГГГ-ММ-ДД.');
+    return;
+  },
 
-// --- /book ---
-bot.command('book', ctx => {
-  ctx.session.booking = { step: 'room' };
-  ctx.reply('Введите ID комнаты (покажите /rooms):');
-});
-
-// --- /mybookings ---
-bot.command('mybookings', async ctx => {
-  try {
-    const headers: any = {};
-    if (ctx.session.auth?.cookies) {
-      headers['Cookie'] = ctx.session.auth.cookies.join('; ');
+  // Шаг 3: Получаем время, спрашиваем название
+  async (ctx) => {
+    if ('text' in ctx.message && /^\d{2}:\d{2}$/.test(ctx.message.text)) {
+      ctx.scene.session.time = ctx.message.text;
+      await ctx.reply('Принято. И последнее, введите название для вашей встречи.');
+      return ctx.wizard.next();
     }
-    const res = await fetch(`${API_BASE}/bookings?date=${new Date().toISOString()}&roomId=0`, { headers });
-    const all = await res.json();
-    const userId = await fetchUserId(ctx);
-    const mine = all.filter((b: any) => b.userId === userId);
-    if (!mine.length) return ctx.reply('У вас нет броней.');
-    ctx.reply(mine.map((b: any) => `ID ${b.id}: ${b.title} в ${b.roomId} c ${new Date(b.startTime).toLocaleString()}`).join('\n\n'));
-  } catch {
-    ctx.reply('Ошибка загрузки броней.');
-  }
-});
+    await ctx.reply('Неверный формат. Пожалуйста, введите время как ЧЧ:ММ.');
+    return;
+  },
 
-// --- /cancel ---
-bot.command('cancel', async ctx => {
-  const parts = ctx.message.text.split(' ');
-  const id = Number(parts[1]);
-  if (!id) return ctx.reply('Использование: /cancel <ID>');
-  try {
-    const headers: any = {};
-    if (ctx.session.auth?.cookies) {
-      headers['Cookie'] = ctx.session.auth.cookies.join('; ');
-    }
-    const res = await fetch(`${API_BASE}/bookings/${id}`, { method: 'DELETE', headers });
-    if (res.status === 204) ctx.reply(`Бронь ${id} отменена`);
-    else {
-      const err = await res.json();
-      ctx.reply(`Ошибка: ${err.error}`);
-    }
-  } catch {
-    ctx.reply('Не удалось отменить.');
-  }
-});
-
-// --- Обработка текстовых ответов ---
-bot.on('text', async ctx => {
-  // 1) логин
-  if (ctx.session.auth) {
-    const a = ctx.session.auth;
-    if (a.step === 'email') {
-      a.email = ctx.message.text.trim();
-      a.step = 'password';
-      return ctx.reply('Введите пароль:');
-    }
-    if (a.step === 'password') {
-      const pwd = ctx.message.text.trim();
-      try {
-        // Получаем CSRF токен
-        const csrfRes = await fetch(`${API_BASE}/auth/csrf`);
-        const { csrfToken } = await csrfRes.json();
-        // Логинимся
-        const form = new URLSearchParams();
-        form.append('csrfToken', csrfToken);
-        form.append('email', a.email!);
-        form.append('password', pwd);
-        form.append('json', 'true');
-
-        const loginRes = await fetch(`${API_BASE}/auth/callback/credentials`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: form.toString(),
-        });
-        const data = await loginRes.json();
-        if (data.error) {
-          ctx.reply(`Ошибка входа: ${data.error}`);
-        } else {
-          // Сохраняем куки
-          const setCookie = loginRes.headers.raw()['set-cookie'];
-          a.cookies = setCookie;
-          ctx.reply('Успешно вошли! Теперь можно бронировать.');
-        }
-      } catch (e) {
-        ctx.reply('Ошибка при входе.');
-      }
-      delete ctx.session.auth;
+  // Шаг 4: Получаем название, создаем бронь
+  async (ctx) => {
+    if (!('text' in ctx.message) || !ctx.message.text) {
+      await ctx.reply('Пожалуйста, введите название встречи.');
       return;
     }
-  }
+    ctx.scene.session.title = ctx.message.text;
+    await ctx.reply('Минутку, создаю бронирование...');
 
-  // 2) бронирование
-  const bs = ctx.session.booking;
-  if (!bs) return;
-  try {
-    if (bs.step === 'room') {
-      const id = Number(ctx.message.text);
-      if (!id) return ctx.reply('Нужен ID.');
-      bs.roomId = id; bs.step = 'date';
-      return ctx.reply('Дата YYYY-MM-DD');
+    const { roomId, date, time, title, roomName } = ctx.scene.session;
+    const userId = await getUserIdByTelegramId(ctx.from.id);
+
+    if (!userId) {
+      await ctx.reply('❌ Ошибка авторизации. Ваш Telegram не привязан к аккаунту на сайте.');
+      return ctx.scene.leave();
     }
-    if (bs.step === 'date') {
-      const d = parseISO(ctx.message.text);
-      if (!isValid(d)) return ctx.reply('Неверный формат');
-      bs.date = format(d, 'yyyy-MM-dd'); bs.step = 'time';
-      return ctx.reply('Время HH:mm-HH:mm');
+
+    if (!roomId || !date || !time || !title || !roomName) {
+      await ctx.reply('❌ Произошла внутренняя ошибка. Не все данные для бронирования были собраны. Попробуйте снова.');
+      return ctx.scene.leave();
     }
-    if (bs.step === 'time') {
-      const [s, e] = ctx.message.text.split('-');
-      if (!/^\d{2}:\d{2}$/.test(s) || !/^\d{2}:\d{2}$/.test(e)) {
-        return ctx.reply('Неверный формат');
-      }
-      bs.startTime = s; bs.endTime = e; bs.step = 'title';
-      return ctx.reply('Заголовок брони');
-    }
-    if (bs.step === 'title') {
-      const title = ctx.message.text.trim();
-      // payload
-      const payload = {
-        roomId: bs.roomId!, title,
-        startTime: `${bs.date}T${bs.startTime}:00.000Z`,
-        endTime:   `${bs.date}T${bs.endTime}:00.000Z`,
-      };
-      // запрос
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (ctx.session.auth?.cookies) headers['Cookie'] = ctx.session.auth.cookies.join('; ');
-      const res = await fetch(`${API_BASE}/bookings`, {
-        method: 'POST', headers, body: JSON.stringify(payload),
+
+    const startTime = parse(`${date} ${time}`, 'yyyy-MM-dd HH:mm', new Date());
+    const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+    try {
+      const response = await fetch(`${process.env.API_BASE_URL}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, roomId, userId, startTime: startTime.toISOString(), endTime: endTime.toISOString() }),
       });
-      const data = await res.json();
-      if (!res.ok) ctx.reply(`Ошибка: ${data.error}`);
-      else ctx.reply(`Забронировано ID ${data.id}`);
-      delete ctx.session.booking;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Сервер вернул ошибку.');
+      await ctx.reply(`✅ Готово! Комната "${roomName}" успешно забронирована.`);
+    } catch (error: any) {
+      await ctx.reply(`❌ Не удалось забронировать: ${error.message}`);
     }
-  } catch (e) {
-    ctx.reply('Ошибка бронирования.');
-    delete ctx.session.booking;
+
+    return ctx.scene.leave();
+  }
+);
+
+bookingWizard.command('cancel', async (ctx) => {
+  await ctx.reply('Действие отменено.');
+  return ctx.scene.leave();
+});
+
+// =============================================================================
+// 4. ИНИЦИАЛИЗАЦИЯ БОТА
+// =============================================================================
+
+const bot = new Telegraf<Context>(process.env.BOT_TOKEN!);
+const stage = new Scenes.Stage<any>([bookingWizard]);
+
+bot.use(session());
+bot.use(stage.middleware());
+
+// =============================================================================
+// 5. ОСНОВНЫЕ КОМАНДЫ БОТА
+// =============================================================================
+
+bot.start((ctx) => {
+  ctx.reply(
+    'Привет! Я бот для бронирования переговорок. 🤖\n\n' +
+    'Доступные команды:\n' +
+    '/rooms - Показать и забронировать комнату\n' +
+    '/mybookings - Посмотреть или отменить мои брони\n' +
+    '/link <code> - Привязать Telegram к аккаунту на сайте\n' +
+    '/help - Помощь'
+  );
+});
+
+bot.help((ctx) => ctx.reply('Используйте команду /rooms, чтобы начать. Если вы "застряли" в диалоге, введите /cancel.'));
+
+bot.command('rooms', async (ctx) => {
+  try {
+    const response = await fetch(`${process.env.API_BASE_URL}/rooms`);
+    if (!response.ok) throw new Error('Не удалось получить список комнат.');
+    const rooms: Room[] = await response.json();
+
+    if (rooms.length === 0) return ctx.reply('Свободных комнат пока нет.');
+
+    const buttons = rooms.map((room) =>
+      Markup.button.callback(
+        `${room.name} (до ${room.capacity} чел.)`,
+        `book_room_${room.id}_${room.name}`
+      )
+    );
+
+    await ctx.reply(
+      'Выберите комнату, чтобы начать бронирование:',
+      Markup.inlineKeyboard(buttons, { columns: 1 })
+    );
+  } catch (error: any) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
   }
 });
 
-// --- Запуск ---
-bot.launch();
-console.log('Bot started');
+bot.command('mybookings', async (ctx) => {
+  const userId = await getUserIdByTelegramId(ctx.from.id);
+  if (!userId) {
+    return ctx.reply('Ваш Telegram не привязан к аккаунту. Пожалуйста, привяжите его в профиле на сайте.');
+  }
+
+  try {
+    const response = await fetch(`${process.env.API_BASE_URL}/bookings/user/${userId}`);
+    if (!response.ok) throw new Error('Не удалось получить ваши бронирования.');
+    const bookings: Booking[] = await response.json();
+
+    if (bookings.length === 0) return ctx.reply('У вас нет активных бронирований.');
+
+    const buttons = bookings.map((booking) =>
+      Markup.button.callback(
+        `❌ ${booking.title} (${format(new Date(booking.startTime), 'dd.MM HH:mm')})`,
+        `delete_booking_${booking.id}`
+      )
+    );
+
+    await ctx.reply(
+      'Вот ваши бронирования. Нажмите, чтобы отменить:',
+      Markup.inlineKeyboard(buttons, { columns: 1 })
+    );
+
+  } catch (error: any) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+bot.command('link', async (ctx) => {
+  const code = ctx.payload.trim();
+  const telegramId = ctx.from.id;
+
+  if (!code) {
+    return ctx.reply(
+      'Пожалуйста, укажите код после команды.\n' +
+      'Сначала сгенерируйте код в профиле на сайте, а затем отправьте его сюда в формате:\n' +
+      '/link ваш_код'
+    );
+  }
+
+  try {
+    const response = await fetch(`${process.env.API_BASE_URL}/telegram/complete-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, telegramId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Произошла неизвестная ошибка.');
+    }
+
+    await ctx.reply(`✅ ${data.message} Теперь вы можете пользоваться всеми функциями бота.`);
+
+  } catch (error: any) {
+    ctx.reply(`❌ Ошибка привязки: ${error.message}`);
+  }
+});
+
+// =============================================================================
+// 6. ОБРАБОТЧИКИ НАЖАТИЙ НА КНОПКИ (ACTIONS)
+// =============================================================================
+
+bot.action(/book_room_(\d+)_([\w\s\-.()]+)/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  ctx.scene.session.roomId = parseInt(ctx.match[1], 10);
+  ctx.scene.session.roomName = ctx.match[2];
+  ctx.scene.enter('booking_wizard');
+});
+
+bot.action(/delete_booking_(\d+)/, async (ctx: any) => {
+  await ctx.answerCbQuery('Отменяю...');
+  const bookingId = parseInt(ctx.match[1], 10);
+  const userId = await getUserIdByTelegramId(ctx.from.id);
+
+  if (!userId) {
+    await ctx.editMessageText('Ошибка авторизации.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${process.env.API_BASE_URL}/bookings/${bookingId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Не удалось отменить бронь.');
+    }
+
+    await ctx.editMessageText(`✅ Бронирование успешно отменено.`);
+  } catch (error: any) {
+    await ctx.editMessageText(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+// =============================================================================
+// 7. ЗАПУСК БОТА
+// =============================================================================
+bot.launch(() => console.log('Бот запущен!'));
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-// --- Помощник получения ID пользователя ---
-async function fetchUserId(ctx: MyContext): Promise<number> {
-  // Можно получить сессию через /api/auth/session
-  const headers: any = {};
-  if (ctx.session.auth?.cookies) headers['Cookie'] = ctx.session.auth.cookies.join('; ');
-  const res = await fetch(`${API_BASE}/auth/session`, { headers });
-  const sess = await res.json();
-  return sess.user.id;
-}
