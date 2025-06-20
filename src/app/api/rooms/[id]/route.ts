@@ -22,9 +22,14 @@ export async function DELETE(request: Request) {
 }
 
 // обновить комнату
-export async function PUT(request: Request, { params }: RouteParams) {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const id = parseInt(params.id, 10);
+    const { id: idString } = await params;
+    const id = parseInt(idString, 10);
+
     const data = await request.json();
     const { name, capacity } = data;
 

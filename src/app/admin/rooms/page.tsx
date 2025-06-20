@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Trash2, Edit } from 'lucide-react';
+import { Trash2, Edit, X } from 'lucide-react';
 
 type Room = {
   id: number;
@@ -19,8 +19,8 @@ export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [newRoom, setNewRoom] = useState({ name: '', capacity: '' });
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
   const fetchRooms = async () => {
     setIsLoading(true);
@@ -66,6 +66,71 @@ export default function AdminRoomsPage() {
       alert(err.message);
     }
   };
+  
+//   const handleCreateRoom = async (e: FormEvent) => {
+//     e.preventDefault();
+//     if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
+//       toast.error('Пожалуйста, заполните все поля.');
+//       return;
+//     }
+//     try {
+//       const response = await fetch('/api/rooms', {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({
+//           name: newRoom.name,
+//           capacity: Number(newRoom.capacity),
+//         }),
+//       });
+
+//       if (!response.ok) {
+//         throw new Error('Не удалось создать комнату.');
+//       }
+
+//       fetchRooms();
+//       setNewRoom({ name: '', capacity: '' });
+//       toast.success('Комната успешно создана.');
+//     } catch (err: any) {
+//       toast.error(err.message);
+//     }
+//   };
+
+
+    const handleUpdateRoom = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!editingRoom) return;
+        if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
+        toast.error('Пожалуйста, заполните все поля.');
+        return;
+        }
+        try {
+        const response = await fetch(`/api/rooms/${editingRoom.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+            name: newRoom.name,
+            capacity: Number(newRoom.capacity),
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Не удалось обновить комнату.');
+        }
+
+        fetchRooms();
+        setNewRoom({ name: '', capacity: '' });
+        setEditingRoom(null);
+        toast.success('Комната успешно обновлена.');
+        } catch (err: any) {
+        toast.error(err.message);
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingRoom(null);
+        setNewRoom({ name: '', capacity: '' });
+    };
+
 
   const handleDeleteRoom = (roomId: number) => {
         toast.warning(
@@ -94,7 +159,9 @@ export default function AdminRoomsPage() {
     };
     
     const handleEditRoom = (room: Room) => {
-        toast.info(`В разработке: редактирование комнаты "${room.name}"`);
+        setEditingRoom(room);
+        setNewRoom({ name: room.name, capacity: String(room.capacity) });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const renderTableContent = () => {
@@ -156,10 +223,12 @@ export default function AdminRoomsPage() {
       
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Добавить новую переговорку</CardTitle>
+          <CardTitle>
+            {editingRoom ? `Редактировать комнату ID: ${editingRoom.id}` : 'Создать новую комнату'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreateRoom} className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <form onSubmit={editingRoom ? handleUpdateRoom : handleCreateRoom} className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="flex-grow">
               <Label htmlFor="name">Название</Label>
               <Input
@@ -182,7 +251,12 @@ export default function AdminRoomsPage() {
                 min="1"
               />
             </div>
-            <Button type="submit" className="w-full sm:w-auto">Создать</Button>
+            <Button type="submit"> {editingRoom ? 'Обновить' : 'Создать'} </Button>
+            {editingRoom && (
+              <Button variant="secondary" type="button" onClick={handleCancelEdit} className="flex items-center gap-1">
+              <X className="h-4 w-4" /> Отмена
+              </Button>
+            )}
           </form>
         </CardContent>
       </Card>
