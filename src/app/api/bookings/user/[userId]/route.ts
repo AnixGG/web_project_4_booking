@@ -3,9 +3,10 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   req: Request,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
-  const userId = parseInt(params.userId, 10);
+  const { userId: rawUserId } = await context.params;
+  const userId = parseInt(rawUserId, 10);
   if (isNaN(userId)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
   const bookings = await prisma.booking.findMany({

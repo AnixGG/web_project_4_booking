@@ -3,10 +3,10 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   req: Request,
-  { params }: { params: { telegramId: string } }
+  context: { params: Promise<{ telegramId: string }> }
 ) {
   try {
-    const { telegramId } = params;
+    const { telegramId: telegramId } = await context.params;
     const user = await prisma.user.findUnique({ where: { telegramId } });
 
     if (!user) {

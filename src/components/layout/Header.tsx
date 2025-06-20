@@ -23,7 +23,7 @@ export default function Header() {
           BookingApp
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           {status === 'loading' && (
             <Loader2 className="h-6 w-6 animate-spin" />
           )}
