@@ -21,7 +21,7 @@ type Booking = {
   title: string;
   startTime: string;
   endTime: string;
-  user: { name: string | null };
+  user: { name: string | null, id: string | null };
 };
 
 export default function BookingPage() {
@@ -248,14 +248,11 @@ export default function BookingPage() {
                       </p>
                     </div>
                     <div className="ml-4 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteBooking(booking.id)}
-                        className="text-red-500 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {(session?.user?.name === booking.user.name || session?.user?.role === "ADMIN") && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteBooking(booking.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </li>
                 ))}
