@@ -17,9 +17,11 @@ model User {
   updatedAt     DateTime  @updatedAt
   name     String?
   role     String    @default("USER") // USER или ADMIN
+  telegramId     String?   @unique
   bookings Booking[]
   accounts Account[]
   sessions Session[]
+  linkToken LinkToken?
 }
 
 // комната
@@ -81,4 +83,12 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model LinkToken {
+  id        String   @id @unique
+  userId    Int      @unique
+  expires   DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

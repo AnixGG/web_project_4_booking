@@ -11,9 +11,8 @@ export default function Header() {
 
   const router = useRouter();
   const handleSignOut = async () => {
-    // Отменяем автоматический редирект
+    // отмена автоматический редирект
     await signOut({ redirect: false });
-    // Затем переходим на главную
     router.push('/');
   };
 
@@ -45,9 +44,11 @@ export default function Header() {
                   Админ
                 </Link>
               )}
-              <span className="text-sm text-gray-600">
-                {session.user.name}
-              </span>
+
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/profile">Профиль</Link>
+              </Button>
+
               <Button variant="outline" onClick={handleSignOut}>
                 Выйти
               </Button>
