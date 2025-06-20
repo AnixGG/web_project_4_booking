@@ -4,9 +4,18 @@ import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { data: session, status } = useSession();
+
+  const router = useRouter();
+  const handleSignOut = async () => {
+    // Отменяем автоматический редирект
+    await signOut({ redirect: false });
+    // Затем переходим на главную
+    router.push('/');
+  };
 
   return (
     <header className="bg-white shadow-sm">
@@ -28,16 +37,18 @@ export default function Header() {
 
           {status === 'authenticated' && session.user && (
             <>
-              <span className="text-sm text-gray-600">
-                Привет, {session.user.name}!
-              </span>
-              {}
               {session.user.role === 'ADMIN' && (
-                <Link href="/admin/rooms" className="text-sm font-medium text-gray-700 hover:text-blue-600">
-                  Админка
+                <Link
+                  href="/admin/rooms"
+                  className="text-sm font-medium text-gray-700 hover:text-blue-600"
+                >
+                  Админ
                 </Link>
               )}
-              <Button variant="outline" onClick={() => signOut()}>
+              <span className="text-sm text-gray-600">
+                {session.user.name}
+              </span>
+              <Button variant="outline" onClick={handleSignOut}>
                 Выйти
               </Button>
             </>

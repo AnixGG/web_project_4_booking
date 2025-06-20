@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,10 @@ export default function AdminRoomsPage() {
 
   const handleCreateRoom = async (e: FormEvent) => {
     e.preventDefault();
-
+    if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
+      toast.error('Пожалуйста, заполните все поля.');
+      return;
+    }
     try {
       const response = await fetch('/api/rooms', {
         method: 'POST',
@@ -62,109 +65,80 @@ export default function AdminRoomsPage() {
 
       fetchRooms();
       setNewRoom({ name: '', capacity: '' });
+      toast.success('Комната успешно создана.');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
-  
-//   const handleCreateRoom = async (e: FormEvent) => {
-//     e.preventDefault();
-//     if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
-//       toast.error('Пожалуйста, заполните все поля.');
-//       return;
-//     }
-//     try {
-//       const response = await fetch('/api/rooms', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({
-//           name: newRoom.name,
-//           capacity: Number(newRoom.capacity),
-//         }),
-//       });
 
-//       if (!response.ok) {
-//         throw new Error('Не удалось создать комнату.');
-//       }
+  const handleUpdateRoom = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingRoom) return;
+    if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
+      toast.error('Пожалуйста, заполните все поля.');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/rooms/${editingRoom.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newRoom.name,
+          capacity: Number(newRoom.capacity),
+        }),
+      });
 
-//       fetchRooms();
-//       setNewRoom({ name: '', capacity: '' });
-//       toast.success('Комната успешно создана.');
-//     } catch (err: any) {
-//       toast.error(err.message);
-//     }
-//   };
+      if (!response.ok) {
+        throw new Error('Не удалось обновить комнату.');
+      }
 
+      fetchRooms();
+      setNewRoom({ name: '', capacity: '' });
+      setEditingRoom(null);
+      toast.success('Комната успешно обновлена.');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
-    const handleUpdateRoom = async (e: FormEvent) => {
-        e.preventDefault();
-        if (!editingRoom) return;
-        if (!newRoom.name.trim() || !newRoom.capacity.trim()) {
-        toast.error('Пожалуйста, заполните все поля.');
-        return;
-        }
-        try {
-        const response = await fetch(`/api/rooms/${editingRoom.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-            name: newRoom.name,
-            capacity: Number(newRoom.capacity),
-            }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Не удалось обновить комнату.');
-        }
-
-        fetchRooms();
-        setNewRoom({ name: '', capacity: '' });
-        setEditingRoom(null);
-        toast.success('Комната успешно обновлена.');
-        } catch (err: any) {
-        toast.error(err.message);
-        }
-    };
-
-    const handleCancelEdit = () => {
-        setEditingRoom(null);
-        setNewRoom({ name: '', capacity: '' });
-    };
-
+  const handleCancelEdit = () => {
+    setEditingRoom(null);
+    setNewRoom({ name: '', capacity: '' });
+  };
 
   const handleDeleteRoom = (roomId: number) => {
-        toast.warning(
-            `Вы уверены, что хотите удалить комнату ID: ${roomId}?`,
-            {
-                action: {
-                    label: "Да, удалить",
-                    onClick: async () => {
-                        const promise = fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
-                        toast.promise(promise, {
-                            loading: 'Удаляем комнату...',
-                            success: () => {
-                                fetchRooms();
-                                return 'Комната успешно удалена!';
-                            },
-                            error: 'Ошибка при удалении',
-                        });
-                    },
-                },
-                cancel: {
-                    label: "Отмена",
-                    onClick: () => {},
-                },
-            }
-        );
-    };
-    
-    const handleEditRoom = (room: Room) => {
-        setEditingRoom(room);
-        setNewRoom({ name: room.name, capacity: String(room.capacity) });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    toast.warning(
+      `Вы уверены, что хотите удалить комнату ID: ${roomId}?`,
+      {
+        action: {
+          label: 'Да, удалить',
+          onClick: async () => {
+            const promise = fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+            toast.promise(promise, {
+              loading: 'Удаляем комнату...',
+              success: () => {
+                fetchRooms();
+                return 'Комната успешно удалена!';
+              },
+              error: 'Ошибка при удалении',
+            });
+          },
+        },
+        cancel: {
+          label: 'Отмена',
+          onClick: () => {},
+        },
+      }
+    );
+  };
 
-    const renderTableContent = () => {
+  const handleEditRoom = (room: Room) => {
+    setEditingRoom(room);
+    setNewRoom({ name: room.name, capacity: String(room.capacity) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const renderTableContent = () => {
     if (isLoading) {
       return <p className="text-center py-4">Загрузка...</p>;
     }
@@ -174,73 +148,81 @@ export default function AdminRoomsPage() {
     }
 
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[100px]">ID</TableHead>
-            <TableHead>Название</TableHead>
-            <TableHead>Вместимость</TableHead>
-            <TableHead className="text-right">Действия</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rooms.length > 0 ? (
-            rooms.map((room) => (
-              <TableRow key={room.id}>
-                <TableCell>{room.id}</TableCell>
-                <TableCell className="font-medium">{room.name}</TableCell>
-                <TableCell>{room.capacity}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleEditRoom(room)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteRoom(room.id)}
-                    className="text-red-500 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[80px]">ID</TableHead>
+              <TableHead>Название</TableHead>
+              <TableHead>Вместимость</TableHead>
+              <TableHead className="text-right">Действия</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rooms.length > 0 ? (
+              rooms.map((room) => (
+                <TableRow key={room.id}>
+                  <TableCell>{room.id}</TableCell>
+                  <TableCell className="font-medium">{room.name}</TableCell>
+                  <TableCell>{room.capacity}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button variant="ghost" size="icon" onClick={() => handleEditRoom(room)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteRoom(room.id)}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  Переговорок пока нет. Создайте первую!
                 </TableCell>
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={4} className="h-24 text-center">
-                Переговорок пока нет. Создайте первую!
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     );
   };
 
   return (
-    <div className="container mx-auto max-w-4xl p-4 sm:p-6">
-      <h1 className="text-3xl font-bold mb-6">Управление переговорками</h1>
-      
+    <div className="font-sans container mx-auto max-w-4xl p-4 sm:p-6">
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">
             {editingRoom ? `Редактировать комнату ID: ${editingRoom.id}` : 'Создать новую комнату'}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={editingRoom ? handleUpdateRoom : handleCreateRoom} className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <form
+            onSubmit={editingRoom ? handleUpdateRoom : handleCreateRoom}
+            className="flex flex-col sm:flex-row sm:items-end gap-4"
+          >
             <div className="flex-grow">
-              <Label htmlFor="name">Название</Label>
+              <Label htmlFor="name" className="block mb-2">
+                Название
+              </Label>
               <Input
                 id="name"
                 placeholder="Например, 'Сириус'"
                 value={newRoom.name}
                 onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
                 required
+                className="w-full mt-2"
               />
             </div>
             <div className="w-full sm:w-auto">
-              <Label htmlFor="capacity">Вместимость</Label>
+              <Label htmlFor="capacity" className="block mb-2">
+                Вместимость
+              </Label>
               <Input
                 id="capacity"
                 type="number"
@@ -249,12 +231,20 @@ export default function AdminRoomsPage() {
                 onChange={(e) => setNewRoom({ ...newRoom, capacity: e.target.value })}
                 required
                 min="1"
+                className="w-full mt-2"
               />
             </div>
-            <Button type="submit"> {editingRoom ? 'Обновить' : 'Создать'} </Button>
+            <Button type="submit" className="mt-2 sm:mt-0">
+              {editingRoom ? 'Обновить' : 'Создать'}
+            </Button>
             {editingRoom && (
-              <Button variant="secondary" type="button" onClick={handleCancelEdit} className="flex items-center gap-1">
-              <X className="h-4 w-4" /> Отмена
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={handleCancelEdit}
+                className="flex items-center gap-1 mt-2 sm:mt-0"
+              >
+                <X className="h-4 w-4" /> Отмена
               </Button>
             )}
           </form>
@@ -263,11 +253,9 @@ export default function AdminRoomsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Список переговорок</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">Список переговорок</CardTitle>
         </CardHeader>
-        <CardContent>
-          {renderTableContent()}
-        </CardContent>
+        <CardContent>{renderTableContent()}</CardContent>
       </Card>
     </div>
   );
